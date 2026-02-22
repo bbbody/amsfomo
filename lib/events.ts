@@ -18,7 +18,7 @@ export interface Event {
   isNew: boolean;
 }
 
-export type VenueSlug = "paradiso" | "melkweg" | "oudekerk" | "hartwig";
+export type VenueSlug = "paradiso" | "melkweg" | "oudekerk" | "tivoli";
 
 export const VENUE_COLORS: Record<
   VenueSlug,
@@ -42,7 +42,7 @@ export const VENUE_COLORS: Record<
     text: "text-emerald-900",
     dot: "bg-emerald-400",
   },
-  hartwig: {
+  tivoli: {
     bg: "bg-violet-100",
     border: "border-violet-400",
     text: "text-violet-900",
@@ -54,7 +54,7 @@ export const VENUE_NAMES: Record<VenueSlug, string> = {
   paradiso: "Paradiso",
   melkweg: "Melkweg",
   oudekerk: "Oude Kerk",
-  hartwig: "Hartwig Art Foundation",
+  tivoli: "TivoliVredenburg",
 };
 
 // Dutch month abbreviations/full names → zero-indexed month number

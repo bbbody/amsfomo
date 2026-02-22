@@ -306,95 +306,67 @@ def scrape_oudekerk() -> list[dict]:
     return events
 
 
-def scrape_hartwig() -> list[dict]:
-    """Hartwig Art Foundation: Nuxt.js. Parse __NUXT_DATA__ for structured programme data."""
-    url = "https://www.hartwigartfoundation.nl/en/programmes/"
-    resp = fetch_page(url)
-    if not resp:
-        return []
-
-    soup = BeautifulSoup(resp.text, "html.parser")
+def scrape_tivoli() -> list[dict]:
+    """TivoliVredenburg: WordPress with paginated agenda. BEM classes on list items."""
+    base_url = "https://www.tivolivredenburg.nl/agenda/"
     events = []
-
-    # Parse __NUXT_DATA__ script tag — a flat array with index-based references
-    nuxt_data_tag = soup.find("script", id="__NUXT_DATA__")
-    if not nuxt_data_tag or not nuxt_data_tag.string:
-        log.warning("Hartwig: No __NUXT_DATA__ script found")
-        return []
-
-    try:
-        data = json.loads(nuxt_data_tag.string)
-    except json.JSONDecodeError as e:
-        log.error("Hartwig: Failed to parse __NUXT_DATA__: %s", e)
-        return []
-
-    def resolve(idx):
-        """Resolve a NUXT_DATA index reference recursively."""
-        if not isinstance(idx, int) or idx >= len(data):
-            return idx
-        val = data[idx]
-        if isinstance(val, dict):
-            return {k: resolve(v) if isinstance(v, int) else v for k, v in val.items()}
-        if isinstance(val, list):
-            return [resolve(v) if isinstance(v, int) else v for v in val]
-        return val
-
-    # data[16] is the programmes list (array of indices into the flat data)
-    if len(data) <= 16 or not isinstance(data[16], list):
-        log.warning("Hartwig: Unexpected __NUXT_DATA__ structure")
-        return []
-
-    programme_indices = data[16]
     seen = set()
+    page = 1
 
-    for idx in programme_indices:
-        prog = resolve(idx)
-        if not isinstance(prog, dict):
-            continue
+    while True:
+        url = f"{base_url}page/{page}/" if page > 1 else base_url
+        resp = fetch_page(url)
+        if not resp:
+            break
 
-        title = prog.get("title", "")
-        if not title:
-            continue
+        soup = BeautifulSoup(resp.text, "html.parser")
+        items = soup.find_all("li", class_=lambda c: c and "agenda-list-item" in c)
+        if not items:
+            break
 
-        # Skip past programmes
-        if prog.get("past", False):
-            continue
+        for item in items:
+            title_el = item.find(class_="agenda-list-item__title")
+            if not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            if not title:
+                continue
 
-        artist = prog.get("artist", "")
-        date = prog.get("date") or ""
-        # Normalize "None" string
-        if date == "None" or date is None:
-            date = ""
-        description = prog.get("description", "")
-        prog_url = prog.get("url", "")
-        full_url = urljoin(url, prog_url) if prog_url else ""
-        location = prog.get("location", "")
-        ongoing = prog.get("ongoing", False)
+            # Date
+            time_el = item.find(class_="agenda-list-item__time")
+            date = time_el.get_text(strip=True) if time_el else ""
 
-        # Build display title with artist if different
-        display_title = title
-        if artist and artist != title:
-            display_title = f"{artist}: {title}"
+            # URL
+            link = item.find("a", class_="agenda-list-item__title-link")
+            event_url = link["href"] if link and link.get("href") else ""
 
-        eid = make_event_id("hartwig", display_title, str(date))
-        if eid in seen:
-            continue
-        seen.add(eid)
+            # Description / subtitle
+            text_el = item.find(class_="agenda-list-item__text")
+            description = text_el.get_text(strip=True) if text_el else ""
 
-        event = {
-            "id": eid,
-            "title": display_title,
-            "date": str(date),
-            "url": full_url,
-        }
-        if description:
-            event["description"] = description
-        if location:
-            event["location"] = location
-        if ongoing:
-            event["status"] = "ongoing"
+            # Status (Uitverkocht, Verplaatst, etc.)
+            label_el = item.find(class_="agenda-list-item__label")
+            status = label_el.get_text(strip=True) if label_el else ""
 
-        events.append(_clean_event(event))
+            eid = make_event_id("tivoli", title, date)
+            if eid in seen:
+                continue
+            seen.add(eid)
+
+            events.append(_clean_event({
+                "id": eid,
+                "title": title,
+                "date": date,
+                "description": description or None,
+                "status": status or None,
+                "url": event_url,
+            }))
+
+        # Check for next page
+        load_more = soup.find("div", class_="js-load-more-button")
+        if not load_more or not load_more.find("a"):
+            break
+        page += 1
 
     return events
 
@@ -412,7 +384,7 @@ SCRAPERS = {
     "paradiso": scrape_paradiso,
     "melkweg": scrape_melkweg,
     "oudekerk": scrape_oudekerk,
-    "hartwig": scrape_hartwig,
+    "tivoli": scrape_tivoli,
 }
 
 
