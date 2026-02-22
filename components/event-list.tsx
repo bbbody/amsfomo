@@ -32,7 +32,7 @@ function usePinnedEvents() {
   return { pinned, toggle };
 }
 
-const VENUE_SLUGS: VenueSlug[] = ["paradiso", "melkweg", "oudekerk", "tivoli"];
+const VENUE_SLUGS: VenueSlug[] = ["paradiso", "melkweg"];
 
 function formatWeekLabel(mondayIso: string): string {
   const d = new Date(mondayIso + "T00:00:00");
