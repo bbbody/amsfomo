@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventCard } from "@/components/event-card";
 import { CalendarView } from "@/components/calendar-view";
+import { SwipeView } from "@/components/swipe-view";
 import type { Event, VenueSlug } from "@/lib/events";
 import { VENUE_COLORS, VENUE_NAMES, getUniqueTypes, getWeekStart } from "@/lib/events";
 import { cn } from "@/lib/utils";
@@ -144,6 +145,9 @@ export function EventList({ events }: { events: Event[] }) {
             <TabsTrigger value="calendar" className="text-sm">
               Calendar
             </TabsTrigger>
+            <TabsTrigger value="swipe" className="text-sm">
+              Swipe
+            </TabsTrigger>
             <TabsTrigger value="pinned" className="text-sm">
               Pinned
               {pinnedExistCount > 0 && (
@@ -259,6 +263,11 @@ export function EventList({ events }: { events: Event[] }) {
       {/* Calendar tab */}
       <TabsContent value="calendar">
         <CalendarView events={filtered} pinned={pinned} toggle={toggle} />
+      </TabsContent>
+
+      {/* Swipe tab */}
+      <TabsContent value="swipe">
+        <SwipeView events={filtered} pinned={pinned} toggle={toggle} />
       </TabsContent>
 
       {/* Pinned tab */}
