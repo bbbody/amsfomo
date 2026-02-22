@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Next.js
+.next/
+out/
+
+# Logs
+updates.log
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated analysis files
+paradiso_html_analysis.md
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

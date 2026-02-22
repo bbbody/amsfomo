@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Paradiso",
+    "slug": "paradiso",
+    "url": "https://www.paradiso.nl/"
+  },
+  {
+    "name": "Melkweg",
+    "slug": "melkweg",
+    "url": "https://www.melkweg.nl/nl/agenda/"
+  },
+  {
+    "name": "Oude Kerk",
+    "slug": "oudekerk",
+    "url": "https://www.oudekerk.nl/publieksprogramma"
+  },
+  {
+    "name": "Hartwig Art Foundation",
+    "slug": "hartwig",
+    "url": "https://www.hartwigartfoundation.nl/en/programmes/"
+  }
+]
