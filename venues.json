@@ -8,5 +8,15 @@
     "name": "Melkweg",
     "slug": "melkweg",
     "url": "https://www.melkweg.nl/nl/agenda/"
+  },
+  {
+    "name": "Subbacultcha",
+    "slug": "subbacultcha",
+    "url": "https://subbacultcha.nl/events/"
+  },
+  {
+    "name": "Murmur",
+    "slug": "murmur",
+    "url": "https://murmurmur.nl/"
   }
 ]
