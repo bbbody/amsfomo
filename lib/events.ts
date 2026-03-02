@@ -9,6 +9,7 @@ export interface Event {
   genre?: string;
   status?: string;
   description?: string;
+  thumbnailUrl?: string;
   url: string;
   venueSlug: string;
   venueName: string;
@@ -18,7 +19,7 @@ export interface Event {
   isNew: boolean;
 }
 
-export type VenueSlug = "paradiso" | "melkweg";
+export type VenueSlug = "paradiso" | "melkweg" | "subbacultcha" | "murmur";
 
 export const VENUE_COLORS: Record<
   VenueSlug,
@@ -36,11 +37,25 @@ export const VENUE_COLORS: Record<
     text: "text-blue-900",
     dot: "bg-blue-400",
   },
+  subbacultcha: {
+    bg: "bg-amber-100",
+    border: "border-amber-400",
+    text: "text-amber-900",
+    dot: "bg-amber-400",
+  },
+  murmur: {
+    bg: "bg-violet-100",
+    border: "border-violet-400",
+    text: "text-violet-900",
+    dot: "bg-violet-400",
+  },
 };
 
 export const VENUE_NAMES: Record<VenueSlug, string> = {
   paradiso: "Paradiso",
   melkweg: "Melkweg",
+  subbacultcha: "Subbacultcha",
+  murmur: "Murmur",
 };
 
 // Dutch month abbreviations/full names → zero-indexed month number
@@ -101,15 +116,6 @@ export function formatDate(dateIso?: string): string {
   });
 }
 
-/** Get the Monday of the week containing a given ISO date string. */
-export function getWeekStart(isoDate: string): string {
-  const d = new Date(isoDate + "T00:00:00");
-  const day = d.getDay(); // 0=Sun
-  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-
 export function getLastUpdated(): string {
   return eventsData.last_updated;
 }
@@ -136,6 +142,7 @@ export function getAllEvents(): Event[] {
         genre: (e.genre as string) || undefined,
         status: (e.status as string) || undefined,
         description: (e.description as string) || undefined,
+        thumbnailUrl: (e.thumbnail_url as string) || undefined,
         url: (e.url as string) || "",
         venueSlug: slug as VenueSlug,
         venueName: v.name,
@@ -153,17 +160,3 @@ export function getAllEvents(): Event[] {
   return events;
 }
 
-export function getUniqueTypes(events: Event[]): string[] {
-  const types = new Set<string>();
-  for (const e of events) {
-    if (e.type) types.add(e.type);
-  }
-  // Only include types that appear more than once (skip long Paradiso descriptions)
-  const typeCounts = new Map<string, number>();
-  for (const e of events) {
-    if (e.type) typeCounts.set(e.type, (typeCounts.get(e.type) || 0) + 1);
-  }
-  return Array.from(types)
-    .filter((t) => t.length < 30 && (typeCounts.get(t) || 0) >= 2)
-    .sort();
-}

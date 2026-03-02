@@ -80,6 +80,7 @@ PARADISO_GRAPHQL_QUERY = """
         soldOut
         supportAct
         location { id title }
+        image { type mobile desktop }
       }
     }
   }
@@ -139,7 +140,23 @@ def scrape_paradiso() -> list[dict]:
             continue
         seen.add(eid)
 
-        events.append(_clean_event({
+        # Thumbnail: use relatedArtists variant or construct URL from any variant
+        thumbnail_url = ""
+        images = ev.get("image") or []
+        if isinstance(images, list):
+            for img in images:
+                if img.get("type") == "relatedArtists":
+                    thumbnail_url = img.get("desktop", "") or img.get("mobile", "")
+                    break
+            if not thumbnail_url and images:
+                # Rewrite any variant URL to ~200x100 for retina
+                src = images[0].get("desktop", "") or images[0].get("mobile", "")
+                if src and "assets.paradiso.nl" in src:
+                    thumbnail_url = re.sub(
+                        r'/_\d+x\d+_crop_', '/_200x100_crop_', src
+                    )
+
+        raw = {
             "id": eid,
             "title": title,
             "date": date,
@@ -148,7 +165,10 @@ def scrape_paradiso() -> list[dict]:
             "venue_detail": location or None,
             "status": status or None,
             "url": event_url,
-        }))
+            "thumbnail_url": thumbnail_url or None,
+        }
+        if not _is_film_event(raw):
+            events.append(_clean_event(raw))
 
     return events
 
@@ -213,12 +233,18 @@ def scrape_melkweg() -> list[dict]:
             if label:
                 status = label.get_text(strip=True)
 
+            # Thumbnail from img inside the card link
+            thumbnail_url = ""
+            img = a_tag.find("img", src=True)
+            if img:
+                thumbnail_url = img.get("src", "")
+
             eid = make_event_id("melkweg", title, date_display)
             if eid in seen:
                 continue
             seen.add(eid)
 
-            events.append(_clean_event({
+            raw = {
                 "id": eid,
                 "title": title,
                 "date": date_display,
@@ -227,7 +253,10 @@ def scrape_melkweg() -> list[dict]:
                 "genre": genre or None,
                 "status": status or None,
                 "url": href,
-            }))
+                "thumbnail_url": thumbnail_url or None,
+            }
+            if not _is_film_event(raw):
+                events.append(_clean_event(raw))
 
     return events
 
@@ -371,9 +400,161 @@ def scrape_tivoli() -> list[dict]:
     return events
 
 
+FILM_KEYWORDS = re.compile(r'\bfilm\b', re.IGNORECASE)
+
+
+def _is_film_event(event: dict) -> bool:
+    """Return True if event looks like a film screening (not music described as 'filmic')."""
+    for field in ("type", "genre"):
+        val = event.get(field, "")
+        if val and FILM_KEYWORDS.search(val):
+            return True
+    return False
+
+
 def _clean_event(event: dict) -> dict:
     """Remove None values from event dict."""
     return {k: v for k, v in event.items() if v is not None}
+
+
+def scrape_subbacultcha() -> list[dict]:
+    """Subbacultcha: WordPress events page. Cards with title links, category, and date/venue text."""
+    url = "https://subbacultcha.nl/events/"
+    resp = fetch_page(url)
+    if not resp:
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    events = []
+    seen = set()
+
+    # Each event block contains an <h2> with <a> title link, category links, and date/venue text
+    for heading in soup.find_all("h2"):
+        a_tag = heading.find("a", href=True)
+        if not a_tag:
+            parent_a = heading.find_parent("a", href=True)
+            if parent_a:
+                a_tag = parent_a
+            else:
+                continue
+
+        title = heading.get_text(strip=True)
+        if not title:
+            continue
+        href = a_tag["href"]
+        if "/event/" not in href:
+            continue
+
+        # Find the container for this event card
+        container = heading.find_parent(["div", "article", "li"])
+        if not container:
+            continue
+
+        # Category from event-category links
+        event_type = ""
+        cat_link = container.find("a", href=lambda h: h and "/event-category/" in h)
+        if cat_link:
+            event_type = cat_link.get_text(strip=True)
+
+        # Date and venue from text content after the category
+        date = ""
+        venue_detail = ""
+        # Look for text that matches date patterns like "4 March" or "15 April"
+        text_content = container.get_text(" ", strip=True)
+        date_match = re.search(
+            r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December))',
+            text_content, re.I
+        )
+        if date_match:
+            date = date_match.group(1)
+            # Venue text often follows the date
+            after_date = text_content[date_match.end():]
+            venue_match = re.match(r'\s*(.+?)(?:,\s*Amsterdam)?$', after_date.strip())
+            if venue_match:
+                venue_detail = venue_match.group(1).strip()
+
+        eid = make_event_id("subbacultcha", title, date)
+        if eid in seen:
+            continue
+        seen.add(eid)
+
+        raw = {
+            "id": eid,
+            "title": title,
+            "date": date,
+            "type": event_type or None,
+            "venue_detail": venue_detail or None,
+            "url": href,
+        }
+        if not _is_film_event(raw):
+            events.append(_clean_event(raw))
+
+    return events
+
+
+def scrape_murmur() -> list[dict]:
+    """Murmur: parse JSON-LD @graph array of Event objects from the homepage."""
+    url = "https://murmurmur.nl/"
+    resp = fetch_page(url)
+    if not resp:
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    events = []
+    seen = set()
+
+    # Look for JSON-LD script tags containing Event data
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(script.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        graph = []
+        if isinstance(data, dict) and "@graph" in data:
+            graph = data["@graph"]
+        elif isinstance(data, list):
+            graph = data
+
+        for item in graph:
+            if not isinstance(item, dict):
+                continue
+            if item.get("@type") != "Event":
+                continue
+
+            title = item.get("name", "")
+            if not title:
+                continue
+            # Clean HTML entities
+            title = BeautifulSoup(title, "html.parser").get_text()
+
+            event_url = item.get("url", "")
+            start_date = item.get("startDate", "")
+            date_iso = start_date[:10] if start_date else ""
+
+            # Format display date from ISO
+            date_display = ""
+            if date_iso:
+                try:
+                    dt = datetime.strptime(date_iso, "%Y-%m-%d")
+                    date_display = dt.strftime("%a %d %b")
+                except ValueError:
+                    date_display = date_iso
+
+            eid = make_event_id("murmur", title, date_iso or date_display)
+            if eid in seen:
+                continue
+            seen.add(eid)
+
+            events.append(_clean_event({
+                "id": eid,
+                "title": title,
+                "date": date_display,
+                "date_iso": date_iso or None,
+                "url": event_url,
+            }))
+
+    return events
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +566,8 @@ SCRAPERS = {
     "melkweg": scrape_melkweg,
     "oudekerk": scrape_oudekerk,
     "tivoli": scrape_tivoli,
+    "subbacultcha": scrape_subbacultcha,
+    "murmur": scrape_murmur,
 }
 
 
